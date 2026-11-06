@@ -56,6 +56,20 @@ tlapi_notify:
     b       gw_enter
     .size   tlapi_notify, .-tlapi_notify
 
+    /* int tlapi_get_property_uuid(uint32_t propset, const char *name, void *out16)
+     * -> gw(0x2b, propset, name, out). cmd 0x2b = TEE_GetPropertyAsUUID (writes 16 B).
+     * Returns the gateway status in w0. */
+    .global tlapi_get_property_uuid
+    .type   tlapi_get_property_uuid, %function
+tlapi_get_property_uuid:
+    hint    #34                     /* bti c */
+    mov     x3, x2                  /* out     -> arg3 */
+    mov     x2, x1                  /* name    -> arg2 */
+    mov     w1, w0                  /* propset -> arg1 (zero-extended) */
+    mov     w0, #0x2b               /* cmd 0x2b = get property as UUID */
+    b       gw_enter
+    .size   tlapi_get_property_uuid, .-tlapi_get_property_uuid
+
     /* tail-call the gateway at *(u32*)0x108c; lr is preserved so the gateway's
      * ret returns to our caller (same shape as the real McLib stubs). */
     .type   gw_enter, %function

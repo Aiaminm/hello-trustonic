@@ -17,7 +17,7 @@
 
 #define TCI_LEN   0x1000u
 #define RSP_FLAG  0x80000000u
-enum { CMD_ECHO = 1, CMD_ADD = 2, CMD_INFO = 3 };
+enum { CMD_ECHO = 1, CMD_ADD = 2, CMD_INFO = 3, CMD_DEVICEID = 4 };
 
 static const mcUuid_t MYTL_UUID = {
     { 0x0a,0x0a,0x0a,0x0a, 0,0,0,0, 0,0,0,0, 0,0,0,0x01 }
@@ -76,6 +76,13 @@ int main(void)
     /* CMD_INFO */
     st = call(CMD_INFO);
     printf("INFO: status=%d  magic=0x%08x  ta_tci_len=%u\n", st, t[2], t[3]);
+
+    /* CMD_DEVICEID — gpd.tee.deviceID (16-byte UUID) */
+    st = call(CMD_DEVICEID);
+    const uint8_t *id = (const uint8_t *)&t[2];
+    printf("DEVID: status=0x%08x  gpd.tee.deviceID=", (unsigned)st);
+    for (int i = 0; i < 16; i++) printf("%02x%s", id[i], (i==3||i==5||i==7||i==9)?"-":"");
+    printf("\n");
 
     mcCloseSession(&sess);
     mcFreeWsm(MC_DEVICE_ID_DEFAULT, tci);

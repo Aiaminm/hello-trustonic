@@ -15,14 +15,17 @@
 
 extern uint32_t tlapi_wait(uint32_t timeout);
 extern void     tlapi_notify(void);
+extern int      tlapi_get_property_uuid(uint32_t propset, const char *name, void *out16);
 
 #define TLAPI_INFINITE  0xffffffffu
 #define RSP_FLAG        0x80000000u
+#define TEE_PROPSET_TEE_IMPLEMENTATION 0xfffffffdu
 
 enum {
-    CMD_ECHO = 1,   /* upper-case tci[1] bytes of payload at &tci[2]             */
-    CMD_ADD  = 2,   /* tci[2] = tci[2] + tci[3]                                  */
-    CMD_INFO = 3,   /* tci[2] = magic, tci[3] = received tci_len                 */
+    CMD_ECHO     = 1,   /* upper-case tci[1] bytes of payload at &tci[2]         */
+    CMD_ADD      = 2,   /* tci[2] = tci[2] + tci[3]                              */
+    CMD_INFO     = 3,   /* tci[2] = magic, tci[3] = received tci_len             */
+    CMD_DEVICEID = 4,   /* 16-byte gpd.tee.deviceID UUID into &tci[2]            */
 };
 
 #define MYTL_MAGIC 0x6d79746cu       /* "mytl" */
@@ -59,6 +62,18 @@ void tlMain(volatile uint32_t *tci, uint32_t len)
             tci[2] = mytl_magic;
             tci[3] = len;
             break;
+        case CMD_DEVICEID: {
+            /* gpd.tee.deviceID is a 16-byte TEE_UUID; read into a local buffer
+             * (the getter writes the property's natural size) then into the TCI. */
+            uint8_t buf[16];
+            for (uint32_t i = 0; i < sizeof(buf); i++) buf[i] = 0;
+            int r = tlapi_get_property_uuid(TEE_PROPSET_TEE_IMPLEMENTATION,
+                                            "gpd.tee.deviceID", buf);
+            volatile uint8_t *p = (volatile uint8_t *)&tci[2];
+            for (uint32_t i = 0; i < 16; i++) p[i] = buf[i];
+            status = (uint32_t)r;   /* GP result (0 = success) */
+            break;
+        }
         default:
             status = 0xffffffffu;       /* unknown command */
         }
