@@ -7,12 +7,18 @@ Produces (see notes/trustlet-abi.md):
   text[0x80:0xa8]  mclfTextHeader (mcLibEntry@0x8c and mcLibBase@0x98 left 0 = loader fills)
   text[0x100:..]   code+rodata (linked at VA 0x1100)
   data             initialized data, mapped at a page-aligned dataVa
-  trailer          copied verbatim from a real TA: the Trustonic key-blob makes G2
-                   (signer hash-pin) pass for free; the signature is ignored because
-                   the Kinibi G3/PSS verdict is patched (see build_metapatch.py).
+  trailer          self-signed with a fresh throwaway RSA key (NO signer transplant):
+                   [u32 0x100][256-B our modulus N][u32 1][e=03][256-B RSA-PSS sig over
+                   text+data]. Nothing is copied from a real Trustonic TA. Both gates the
+                   trailer feeds are neutralised on-device by build_metapatch.py: G2
+                   (signer hash-pin) no longer needs our modulus to match a pinned one,
+                   and G3 (PSS verdict) is forced valid. The key is ephemeral -- generated
+                   per build and discarded -- since nothing on-device pins or verifies it.
 """
 import argparse, struct, hashlib
 from elftools.elf.elffile import ELFFile
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
 
 TEXT_VA = 0x1000
 CODE_VA = 0x1100          # [0x1000,0x1100) reserved for the two headers
@@ -43,7 +49,6 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('elf')
     ap.add_argument('-o', '--out', required=True)
-    ap.add_argument('--donor', required=True, help='real .tlbin whose trailer to copy')
     ap.add_argument('--uuid', default='0a0a0a0a000000000000000000000001')
     ap.add_argument('--service-type', type=lambda x: int(x, 0), default=3)
     ap.add_argument('--flags',        type=lambda x: int(x, 0), default=0x28)  # bit3 EXTENDED_LAYOUT + bit5 (validator requires bit5 set, else a global check)
@@ -106,24 +111,33 @@ def main():
     struct.pack_into('<II',  text, 0x9c, 0x00010015, 0x00010005)   # tlApiVers, drApiVers
     struct.pack_into('<I',   text, 0xa4, 0)                        # ta_properties
 
-    # --- trailer (fakesign) copied from the donor ---
-    dn = open(a.donor, 'rb').read()
-    if dn[:4] != b'MCLF':
-        raise SystemExit("donor is not an MCLF")
-    d_tlen = struct.unpack_from('<I', dn, 0x34)[0]
-    d_dlen = struct.unpack_from('<I', dn, 0x3c)[0]
-    trailer = dn[d_tlen + d_dlen:]
-    if not trailer:
-        raise SystemExit("donor has no trailer")
+    # --- trailer: self-signed with a fresh throwaway key (no signer transplant) ---
+    # Layout matches a real Trustonic trailer byte-for-byte in shape, but every byte is
+    # ours: a per-build RSA-2048/e=3 key, our modulus, and a genuine RSA-PSS(SHA-256)
+    # signature over body = file[0 : textLen+dataLen]. G2 (signer hash-pin) and G3 (PSS
+    # verdict) are both neutralised by build_metapatch.py, so the modulus needs no pin and
+    # the signature is never checked on-device -- it is emitted only so the artifact is
+    # internally consistent (verifies against its own embedded modulus).
+    body = bytes(text) + bytes(data)
+    key = rsa.generate_private_key(public_exponent=3, key_size=2048)
+    pub = key.public_key().public_numbers()
+    sig = key.sign(body, padding.PSS(mgf=padding.MGF1(hashes.SHA256()),
+                                     salt_length=padding.PSS.DIGEST_LENGTH),
+                   hashes.SHA256())
+    assert pub.e == 3 and len(sig) == 256
+    modulus = pub.n.to_bytes(256, 'big')
+    trailer = struct.pack('<I', 0x100) + modulus + struct.pack('<I', 1) + bytes([pub.e]) + sig
+    assert len(trailer) == 0x209, f"trailer is {len(trailer):#x}, expected 0x209"
 
-    out = bytes(text) + bytes(data) + trailer
+    out = body + trailer
     open(a.out, 'wb').write(out)
 
     print(f"wrote {a.out}  size=0x{len(out):x}  sha256={hashlib.sha256(out).hexdigest()[:16]}")
     print(f"  entry={entry:#06x}  text=0x{text_len:x}  data@{data_start:#x}=0x{data_len:x}  "
           f"bss=0x{bss_len:x} (end {bss_end:#x})")
     print(f"  tci_desc @ {bss_end-8:#x}   uuid={a.uuid}  svcType={a.service_type}  flags={a.flags:#x}")
-    print(f"  trailer=0x{len(trailer):x}B from {a.donor}")
+    print(f"  trailer=0x{len(trailer):x}B self-signed  e={pub.e}  "
+          f"modulus_sha256={hashlib.sha256(modulus).hexdigest()[:16]} (throwaway, per-build)")
 
 if __name__ == '__main__':
     main()

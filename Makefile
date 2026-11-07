@@ -7,7 +7,7 @@
 #   make check      compile-check the client (headers only)    [no device, no lib]
 #   make clean      remove build artifacts
 #
-# Overridable: CROSS, DONOR, NDK, API, ADB, UUID.
+# Overridable: CROSS, NDK, API, ADB, UUID.
 
 # ---- trustlet toolchain ----------------------------------------------------
 CROSS     ?= aarch64-linux-gnu
@@ -16,7 +16,6 @@ TA_LD      = $(CROSS)-ld
 TA_CFLAGS  = -ffreestanding -nostdlib -fno-pic -fno-pie -fno-stack-protector \
              -fno-asynchronous-unwind-tables -mbranch-protection=none \
              -march=armv8-a -Os -Wall -Wextra
-DONOR     ?= ../trustlets/0706000000000000000000000000004d.tlbin
 TLBIN      = mytl.tlbin
 
 # ---- client toolchain (Android NDK) ----------------------------------------
@@ -51,7 +50,7 @@ mytl.elf: start.o tlmain.o mytl.ld
 	$(TA_LD) -T mytl.ld -static --no-dynamic-linker start.o tlmain.o -o $@
 
 $(TLBIN): mytl.elf elf2mclf.py
-	python3 elf2mclf.py mytl.elf --donor $(DONOR) --uuid $(UUID) -o $@
+	python3 elf2mclf.py mytl.elf --uuid $(UUID) -o $@
 
 # client (links against the device's libMcClient.so, pulled on demand)
 client: $(CLIENT)
