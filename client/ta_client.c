@@ -17,6 +17,7 @@ enum {
     CMD_SHA256   = 6,
     CMD_VERSION  = 7,
     CMD_TIME     = 8,
+    CMD_LOG      = 9,
 };
 
 static const mcUuid_t TA_UUID = {
@@ -108,6 +109,12 @@ int main(void)
     st = call(CMD_TIME);
     printf("TIME:  status=%d  ts=%llu\n", st,
            (unsigned long long)((uint64_t)t[2] | ((uint64_t)t[3] << 32)));
+
+    /* CMD_LOG — ask the TA to log a string (see it via: dmesg | grep 'Trustonic TEE') */
+    const char *lmsg = "hello from ta";
+    strcpy((char *)&t[2], lmsg);
+    st = call(CMD_LOG);
+    printf("LOG: status=%d\n", st);
 
     mcCloseSession(&sess);
     mcFreeWsm(MC_DEVICE_ID_DEFAULT, tci);

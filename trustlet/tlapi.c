@@ -202,3 +202,17 @@ tlApiResult_t tlApiMessageDigestInit(tlApiCrSession_t *pSessionHandle, tlApiMdAl
 {
     return tlApiMessageDigestInitWithData(pSessionHandle, algorithm, NULL, NULL);
 }
+
+/* cmd 5 takes the format string and a pointer to the va_list (as the stock stubs do) */
+void tlApiLogvPrintf(const char *fmt, va_list args)
+{
+    ((void (*)(uint32_t, const char *, va_list *))GW)(TLAPI_CMD_LOGV_PRINTF, fmt, &args);
+}
+
+void tlApiLogPrintf(const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    tlApiLogvPrintf(fmt, ap);
+    va_end(ap);
+}

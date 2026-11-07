@@ -14,6 +14,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include <stdarg.h>
 
 #define MC_ENUM_32BIT_SPACER 0x7fffffff   /* standard 32-bit enum-width spacer */
 #define TLAPI_OK             0
@@ -542,7 +543,7 @@ tlApiResult_t tlApiRandomGenerateData(tlApiRngAlg_t alg, uint8_t *randomBuffer, 
 void * tlApiMalloc(uint32_t size, uint32_t hint);
 void * tlApiRealloc(void* buffer, uint32_t newSize);
 void tlApiFree(void *buffer);
-//void tlApiLogvPrintf(const char *fmt, va_list args);
+void tlApiLogvPrintf(const char *fmt, va_list args);
 void tlApiLogPrintf(const char *fmt, ...);
 tlApiResult_t tlApiGetVersion(uint32_t *tlApiVersion);
 tlApiResult_t tlApiGetMobicoreVersion(mcVersionInfo_t * mcVersionInfo);

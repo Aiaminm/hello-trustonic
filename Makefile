@@ -93,11 +93,14 @@ deploy: $(TLBIN)
 	$(SU) "chcon $(LABEL) $(OVL)/up/$(UUID).tlbin"
 	$(SU) "mount -t overlay overlay -o lowerdir=$(REG),upperdir=$(OVL)/up,workdir=$(OVL)/work $(REG)"
 
-# build, deploy, run
+# build, deploy, run, then show this run's secure log
 test: deploy $(CLIENT)
 	$(ADB) push $(CLIENT) $(DEV_TMP)/ta_client
 	$(SU) "chmod 755 $(DEV_TMP)/ta_client"
-	$(SU) "LD_LIBRARY_PATH=/vendor/lib64 $(DEV_TMP)/ta_client"
+	@s=$$($(SU) "dmesg" | awk 'END{t=$$1; gsub(/[][]/,"",t); print t+0}'); \
+	 $(SU) "LD_LIBRARY_PATH=/vendor/lib64 $(DEV_TMP)/ta_client"; \
+	 echo "--- secure log ---"; \
+	 $(SU) "dmesg" | awk -v s=$$s '/Trustonic TEE/{t=$$1; gsub(/[][]/,"",t); if (t+0 > s) print}'
 
 unmount:
 	-$(SU) "umount $(REG)"

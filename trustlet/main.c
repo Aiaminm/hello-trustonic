@@ -20,6 +20,7 @@ enum {
     CMD_SHA256   = 6,   /* SHA-256 of tci[1] input bytes -> 32 bytes at &tci[2]  */
     CMD_VERSION  = 7,   /* mcVersionInfo_t into &tci[2]                          */
     CMD_TIME     = 8,   /* 64-bit secure timestamp into tci[2],tci[3]           */
+    CMD_LOG      = 9,   /* tlApiLogPrintf the payload string                    */
 };
 
 #define TA_MAGIC   0x00007461u     /* "ta" */
@@ -115,6 +116,10 @@ void tlMain(const addr_t tciBuffer, const uint32_t tciBufferLen)
             status = r;
             break;
         }
+        case CMD_LOG:
+            tlApiLogPrintf("ta: %s", (const char *)&tci[2]);
+            status = 0;
+            break;
         default:
             status = 0xffffffffu;       /* unknown command */
         }

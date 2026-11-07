@@ -15,3 +15,11 @@ ADD:  status=0  40+2=42
 INFO: status=0  magic=0x6d79746c  ta_tci_len=4096
 DEVID: status=0x00000000  gpd.tee.deviceID=00000009-1229-0000-xxxx-xxxxxxxxxxxx
 ```
+
+### Assorted links:
+
+- https://blog.quarkslab.com/a-deep-dive-into-samsungs-trustzone-part-1.html
+- https://github.com/radareorg/radare2/blob/master/libr/bin/p/bin_mclf.c
+- https://github.com/kgp700/exyroid-sgs2-ics/tree/master/drivers/gud/include/TlApi
+- https://github.com/ghassani/mclf-ghidra-loader
+- https://github.com/NeatMonster/mclf-ghidra-loader
