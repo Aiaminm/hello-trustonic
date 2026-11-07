@@ -1,21 +1,20 @@
-# mytl — from-scratch Kinibi trustlet: build + on-device test
+# mytl — build a trustlet and run it on a device
 #
-#   make            build the trustlet (mytl.tlbin)            [no device needed]
-#   make client     build the normal-world client             [needs device: pulls libMcClient.so]
-#   make test       mount overlay + push + run the client      [needs a Kinibi patched to accept
-#                                                                self-signed trustlets, + root]
+#   make            build the trustlet (mytl.tlbin)
+#   make client     build the normal-world client
+#   make test       deploy + run the client               [device + root]
 #   make unmount    tear down the on-device overlay
-#   make check      compile-check the client (headers only)    [no device, no lib]
+#   make check      compile-check the client
 #   make clean      remove build artifacts
 #
-# Overridable (all have sane defaults; set on the command line or as env vars):
-#   CROSS          bare-metal AArch64 toolchain prefix          (default aarch64-linux-gnu)
-#   NDK            Android NDK root                             (default $ANDROID_NDK_HOME)
-#   NDK_HOST       NDK prebuilt host tag                        (default from `uname`)
-#   API            Android API level for the client            (default 34)
-#   TEE_USERSPACE  Trustonic trustonic-tee-user-space headers   (default: the bundled submodule)
-#   ADB            adb binary                                   (default: adb on PATH)
-#   UUID           trustlet UUID                                (default 0a0a0a0a…0001)
+# Overrides:
+#   CROSS          AArch64 toolchain prefix        (aarch64-linux-gnu)
+#   NDK            Android NDK root                ($ANDROID_NDK_HOME)
+#   NDK_HOST       NDK prebuilt host tag           (from uname)
+#   API            Android API level               (34)
+#   TEE_USERSPACE  trustonic-tee-user-space tree   (bundled submodule)
+#   ADB            adb binary                      (adb)
+#   UUID           trustlet UUID
 
 # ---- trustlet toolchain ----------------------------------------------------
 CROSS     ?= aarch64-linux-gnu
@@ -24,18 +23,16 @@ TA_LD      = $(CROSS)-ld
 TA_CFLAGS  = -ffreestanding -nostdlib -fno-pic -fno-pie -fno-stack-protector \
              -fno-asynchronous-unwind-tables -mbranch-protection=none \
              -march=armv8-a -Os -Wall -Wextra
+TA_SRC     = trustlet
+TOOLS      = tools
+TA_OBJ     = $(TA_SRC)/start.o $(TA_SRC)/tlmain.o
 TLBIN      = mytl.tlbin
 
 # ---- client toolchain (Android NDK) ----------------------------------------
-# NDK defaults to $ANDROID_NDK_HOME; override with `make NDK=/path/to/ndk`.
-# NDK_HOST is the prebuilt host tag (linux-x86_64 / darwin-x86_64), derived from uname.
 NDK       ?= $(ANDROID_NDK_HOME)
 API       ?= 34
 NDK_HOST  ?= $(shell uname -s | tr A-Z a-z)-x86_64
 NDK_CC     = $(NDK)/toolchains/llvm/prebuilt/$(NDK_HOST)/bin/aarch64-linux-android$(API)-clang
-# Trustonic client headers (ClientLib public API + MobiCore inc), vendored as a
-# submodule. If the dir is empty after cloning, run:
-#   git submodule update --init
 TEE_USERSPACE ?= third_party/trustonic-tee-user-space
 CLIENT_INC = -I$(TEE_USERSPACE)/MobiCoreDriverLib/ClientLib/public -I$(TEE_USERSPACE)/common/MobiCore/inc
 CLIENT     = client/mytl_client
@@ -54,25 +51,22 @@ LABEL      = u:object_r:mobicore_vendor_file:s0
 
 all: $(TLBIN)
 
-start.o: start.S
+$(TA_SRC)/%.o: $(TA_SRC)/%.S
 	$(TA_CC) $(TA_CFLAGS) -c $< -o $@
 
-tlmain.o: tlmain.c
+$(TA_SRC)/%.o: $(TA_SRC)/%.c
 	$(TA_CC) $(TA_CFLAGS) -c $< -o $@
 
-mytl.elf: start.o tlmain.o mytl.ld
-	$(TA_LD) -T mytl.ld -static --no-dynamic-linker start.o tlmain.o -o $@
+$(TA_SRC)/mytl.elf: $(TA_OBJ) $(TA_SRC)/mytl.ld
+	$(TA_LD) -T $(TA_SRC)/mytl.ld -static --no-dynamic-linker $(TA_OBJ) -o $@
 
-$(TLBIN): mytl.elf elf2mclf.py
-	python3 elf2mclf.py mytl.elf --uuid $(UUID) -o $@
+$(TLBIN): $(TA_SRC)/mytl.elf $(TOOLS)/elf2mclf.py
+	python3 $(TOOLS)/elf2mclf.py $< --uuid $(UUID) -o $@
 
-# client (links against the device's libMcClient.so, pulled on demand)
 client: $(CLIENT)
 
-# fail early with a clear hint if the headers submodule hasn't been initialised
 $(TEE_USERSPACE)/MobiCoreDriverLib/ClientLib/public/MobiCoreDriverApi.h:
-	@echo "Trustonic headers missing at $(TEE_USERSPACE)." >&2
-	@echo "Run: git submodule update --init" >&2
+	@echo "headers missing at $(TEE_USERSPACE); run: git submodule update --init" >&2
 	@exit 1
 
 client/libMcClient.so:
@@ -84,8 +78,7 @@ $(CLIENT): client/mytl_client.c client/libMcClient.so $(TEE_USERSPACE)/MobiCoreD
 check: client/mytl_client.c $(TEE_USERSPACE)/MobiCoreDriverLib/ClientLib/public/MobiCoreDriverApi.h
 	$(NDK_CC) -Wall -O2 $(CLIENT_INC) -c $< -o /dev/null && echo "client headers OK"
 
-# (re)mount a tmpfs-upper overlay that drops our TA into the RO registry, then
-# refresh the TA file. Idempotent: tears down any previous mount first.
+# overlay the trustlet into the read-only registry (idempotent)
 deploy: $(TLBIN)
 	-$(SU) "umount $(REG)"
 	-$(SU) "umount $(OVL)"
@@ -97,7 +90,7 @@ deploy: $(TLBIN)
 	$(SU) "chcon $(LABEL) $(OVL)/up/$(UUID).tlbin"
 	$(SU) "mount -t overlay overlay -o lowerdir=$(REG),upperdir=$(OVL)/up,workdir=$(OVL)/work $(REG)"
 
-# full on-device test: build, deploy, push + run the client
+# build, deploy, run
 test: deploy $(CLIENT)
 	$(ADB) push $(CLIENT) $(DEV_TMP)/mytl_client
 	$(SU) "chmod 755 $(DEV_TMP)/mytl_client"
@@ -108,4 +101,4 @@ unmount:
 	-$(SU) "umount $(OVL)"
 
 clean:
-	rm -f start.o tlmain.o mytl.elf $(TLBIN) $(CLIENT)
+	rm -f $(TA_OBJ) $(TA_SRC)/mytl.elf $(TLBIN) $(CLIENT)
