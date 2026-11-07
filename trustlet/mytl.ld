@@ -1,4 +1,4 @@
-/* mytl/mytl.ld — Kinibi trustlet memory layout.
+/* mytl.ld — trustlet memory layout.
  *
  *   VA 0x1000            text segment base (== file offset 0 for the loader)
  *   VA 0x1000..0x1100    reserved for the MCLF header + mclfTextHeader (elf2mclf fills)

@@ -12,7 +12,7 @@
     .global _start
     .type   _start, %function
 _start:
-    hint    #38                     /* bti jc */
+    bti     jc
     /* set up stack */
     adrp    x0, __stack_top
     add     x0, x0, :lo12:__stack_top
@@ -37,7 +37,7 @@ _start:
     .global tlapi_wait
     .type   tlapi_wait, %function
 tlapi_wait:
-    hint    #34                     /* bti c */
+    bti     c
     mov     w1, w0                  /* timeout -> arg1 */
     mov     w0, #6                  /* cmd 6 = wait notification */
     b       gw_enter
@@ -47,7 +47,7 @@ tlapi_wait:
     .global tlapi_notify
     .type   tlapi_notify, %function
 tlapi_notify:
-    hint    #34                     /* bti c */
+    bti     c
     mov     w0, #7                  /* cmd 7 = notify */
     b       gw_enter
     .size   tlapi_notify, .-tlapi_notify
@@ -58,7 +58,7 @@ tlapi_notify:
     .global tlapi_get_property_uuid
     .type   tlapi_get_property_uuid, %function
 tlapi_get_property_uuid:
-    hint    #34                     /* bti c */
+    bti     c
     mov     x3, x2                  /* out     -> arg3 */
     mov     x2, x1                  /* name    -> arg2 */
     mov     w1, w0                  /* propset -> arg1 (zero-extended) */
@@ -69,7 +69,7 @@ tlapi_get_property_uuid:
     /* tail-call gateway at *(u32*)0x108c; lr preserved -> its ret returns to our caller */
     .type   gw_enter, %function
 gw_enter:
-    hint    #34                     /* bti c */
+    bti     c
     movz    x16, #0x108c
     ldr     w16, [x16]              /* 32-bit gateway address */
     br      x16
