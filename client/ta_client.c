@@ -1,4 +1,4 @@
-/* mytl_client.c — normal-world driver for the mytl echo trustlet.
+/* ta_client.c — normal-world driver for the ta echo trustlet.
  * Opens a MobiCore session to the TA and exercises its commands over the TCI buffer.
  */
 #include <stdio.h>
@@ -10,7 +10,7 @@
 #define RSP_FLAG  0x80000000u
 enum { CMD_ECHO = 1, CMD_ADD = 2, CMD_INFO = 3, CMD_DEVICEID = 4 };
 
-static const mcUuid_t MYTL_UUID = {
+static const mcUuid_t TA_UUID = {
     { 0x0a,0x0a,0x0a,0x0a, 0,0,0,0, 0,0,0,0, 0,0,0,0x01 }
 };
 
@@ -45,7 +45,7 @@ int main(void)
         printf("mcMallocWsm: 0x%08x\n", r); return 1;
     }
     sess.deviceId = MC_DEVICE_ID_DEFAULT;
-    if ((r = mcOpenSession(&sess, &MYTL_UUID, tci, TCI_LEN)) != MC_DRV_OK) {
+    if ((r = mcOpenSession(&sess, &TA_UUID, tci, TCI_LEN)) != MC_DRV_OK) {
         printf("mcOpenSession: 0x%08x  <- TA failed to load/start\n", r);
         return 1;
     }

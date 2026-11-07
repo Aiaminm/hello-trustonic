@@ -1,4 +1,4 @@
-/* tlmain.c — echo trustlet command loop.
+/* main.c — echo trustlet command loop.
  *
  * TCI protocol (TA-defined; the NW client matches it):
  *   tci[0]   = command id      (TA replies with RSP_FLAG set)
@@ -22,12 +22,12 @@ enum {
     CMD_DEVICEID = 4,   /* 16-byte gpd.tee.deviceID UUID into &tci[2]            */
 };
 
-#define MYTL_MAGIC 0x6d79746cu       /* "mytl" */
+#define TA_MAGIC   0x00007461u     /* "ta" */
 
 /* initialized global: forces a non-empty .data segment */
-uint32_t mytl_magic = MYTL_MAGIC;
+uint32_t ta_magic = TA_MAGIC;
 
-void tlMain(volatile uint32_t *tci, uint32_t len)
+void ta_main(volatile uint32_t *tci, uint32_t len)
 {
     for (;;) {
         tlapi_wait(TLAPI_INFINITE);
@@ -53,7 +53,7 @@ void tlMain(volatile uint32_t *tci, uint32_t len)
             tci[2] = tci[2] + tci[3];
             break;
         case CMD_INFO:
-            tci[2] = mytl_magic;
+            tci[2] = ta_magic;
             tci[3] = len;
             break;
         case CMD_DEVICEID: {

@@ -29,8 +29,8 @@ _start:
     adrp    x9, __tci_desc
     add     x9, x9, :lo12:__tci_desc
     ldp     w0, w1, [x9]
-    bl      tlMain
-0:  b       0b                      /* tlMain must not return */
+    bl      ta_main
+0:  b       0b                      /* ta_main must not return */
     .size   _start, .-_start
 
     /* uint32_t tlapi_wait(uint32_t timeout) */

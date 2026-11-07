@@ -4,7 +4,7 @@
 *.tlbin
 
 # client: compiled binary + the device lib pulled in to link against
-client/mytl_client
+client/ta_client
 client/libMcClient.so
 
 # python

@@ -1,6 +1,6 @@
-# mytl — build a trustlet and run it on a device
+# ta — build a trustlet and run it on a device
 #
-#   make            build the trustlet (mytl.tlbin)
+#   make            build the trustlet (ta.tlbin)
 #   make client     build the normal-world client
 #   make test       deploy + run the client               [device + root]
 #   make unmount    tear down the on-device overlay
@@ -25,8 +25,8 @@ TA_CFLAGS  = -ffreestanding -nostdlib -fno-pic -fno-pie -fno-stack-protector \
              -march=armv8-a -Os -Wall -Wextra
 TA_SRC     = trustlet
 TOOLS      = tools
-TA_OBJ     = $(TA_SRC)/start.o $(TA_SRC)/tlmain.o
-TLBIN      = mytl.tlbin
+TA_OBJ     = $(TA_SRC)/start.o $(TA_SRC)/main.o
+TLBIN      = ta.tlbin
 
 # ---- client toolchain (Android NDK) ----------------------------------------
 NDK       ?= $(ANDROID_NDK_HOME)
@@ -35,7 +35,7 @@ NDK_HOST  ?= $(shell uname -s | tr A-Z a-z)-x86_64
 NDK_CC     = $(NDK)/toolchains/llvm/prebuilt/$(NDK_HOST)/bin/aarch64-linux-android$(API)-clang
 TEE_USERSPACE ?= third_party/trustonic-tee-user-space
 CLIENT_INC = -I$(TEE_USERSPACE)/MobiCoreDriverLib/ClientLib/public -I$(TEE_USERSPACE)/common/MobiCore/inc
-CLIENT     = client/mytl_client
+CLIENT     = client/ta_client
 
 # ---- device ----------------------------------------------------------------
 ADB       ?= adb
@@ -57,10 +57,10 @@ $(TA_SRC)/%.o: $(TA_SRC)/%.S
 $(TA_SRC)/%.o: $(TA_SRC)/%.c
 	$(TA_CC) $(TA_CFLAGS) -c $< -o $@
 
-$(TA_SRC)/mytl.elf: $(TA_OBJ) $(TA_SRC)/mytl.ld
-	$(TA_LD) -T $(TA_SRC)/mytl.ld -static --no-dynamic-linker $(TA_OBJ) -o $@
+$(TA_SRC)/ta.elf: $(TA_OBJ) $(TA_SRC)/ta.ld
+	$(TA_LD) -T $(TA_SRC)/ta.ld -static --no-dynamic-linker $(TA_OBJ) -o $@
 
-$(TLBIN): $(TA_SRC)/mytl.elf $(TOOLS)/elf2mclf.py
+$(TLBIN): $(TA_SRC)/ta.elf $(TOOLS)/elf2mclf.py
 	python3 $(TOOLS)/elf2mclf.py $< --uuid $(UUID) -o $@
 
 client: $(CLIENT)
@@ -72,10 +72,10 @@ $(TEE_USERSPACE)/MobiCoreDriverLib/ClientLib/public/MobiCoreDriverApi.h:
 client/libMcClient.so:
 	$(ADB) exec-out su -c "cat /vendor/lib64/libMcClient.so" > $@
 
-$(CLIENT): client/mytl_client.c client/libMcClient.so $(TEE_USERSPACE)/MobiCoreDriverLib/ClientLib/public/MobiCoreDriverApi.h
+$(CLIENT): client/ta_client.c client/libMcClient.so $(TEE_USERSPACE)/MobiCoreDriverLib/ClientLib/public/MobiCoreDriverApi.h
 	$(NDK_CC) -Wall -O2 $(CLIENT_INC) $< -Lclient -lMcClient -o $@
 
-check: client/mytl_client.c $(TEE_USERSPACE)/MobiCoreDriverLib/ClientLib/public/MobiCoreDriverApi.h
+check: client/ta_client.c $(TEE_USERSPACE)/MobiCoreDriverLib/ClientLib/public/MobiCoreDriverApi.h
 	$(NDK_CC) -Wall -O2 $(CLIENT_INC) -c $< -o /dev/null && echo "client headers OK"
 
 # overlay the trustlet into the read-only registry (idempotent)
@@ -92,13 +92,13 @@ deploy: $(TLBIN)
 
 # build, deploy, run
 test: deploy $(CLIENT)
-	$(ADB) push $(CLIENT) $(DEV_TMP)/mytl_client
-	$(SU) "chmod 755 $(DEV_TMP)/mytl_client"
-	$(SU) "LD_LIBRARY_PATH=/vendor/lib64 $(DEV_TMP)/mytl_client"
+	$(ADB) push $(CLIENT) $(DEV_TMP)/ta_client
+	$(SU) "chmod 755 $(DEV_TMP)/ta_client"
+	$(SU) "LD_LIBRARY_PATH=/vendor/lib64 $(DEV_TMP)/ta_client"
 
 unmount:
 	-$(SU) "umount $(REG)"
 	-$(SU) "umount $(OVL)"
 
 clean:
-	rm -f $(TA_OBJ) $(TA_SRC)/mytl.elf $(TLBIN) $(CLIENT)
+	rm -f $(TA_OBJ) $(TA_SRC)/ta.elf $(TLBIN) $(CLIENT)
