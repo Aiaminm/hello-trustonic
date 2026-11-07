@@ -9,6 +9,7 @@
 #include "tlapi.h"
 
 #define RSP_FLAG        0x80000000u
+#define TEE_PROPSET_TEE_IMPLEMENTATION 0xfffffffdu
 
 enum {
     CMD_ECHO     = 1,   /* upper-case tci[1] bytes of payload at &tci[2]         */
@@ -22,10 +23,13 @@ enum {
 /* initialized global: forces a non-empty .data segment */
 uint32_t ta_magic = TA_MAGIC;
 
-void ta_main(volatile uint32_t *tci, uint32_t len)
+void tlMain(const addr_t tciBuffer, const uint32_t tciBufferLen)
 {
+    volatile uint32_t *tci = (volatile uint32_t *)tciBuffer;
+    uint32_t len = tciBufferLen;
+
     for (;;) {
-        tlapi_wait(TLAPI_INFINITE);
+        tlApiWaitNotification(TLAPI_INFINITE);
 
         uint32_t cmd    = tci[0] & ~RSP_FLAG;
         uint32_t status = 0;
@@ -55,8 +59,8 @@ void ta_main(volatile uint32_t *tci, uint32_t len)
             /* gpd.tee.deviceID: 16-byte TEE_UUID via a local buffer, then into the TCI */
             uint8_t buf[16];
             for (uint32_t i = 0; i < sizeof(buf); i++) buf[i] = 0;
-            int r = tlapi_get_property_uuid(TEE_PROPSET_TEE_IMPLEMENTATION,
-                                            "gpd.tee.deviceID", buf);
+            int r = tlApiGetIDs(TEE_PROPSET_TEE_IMPLEMENTATION,
+                                "gpd.tee.deviceID", buf);
             volatile uint8_t *p = (volatile uint8_t *)&tci[2];
             for (uint32_t i = 0; i < 16; i++) p[i] = buf[i];
             status = (uint32_t)r;   /* GP result (0 = success) */
@@ -68,6 +72,6 @@ void ta_main(volatile uint32_t *tci, uint32_t len)
 
         tci[0] = cmd | RSP_FLAG;
         tci[1] = status;
-        tlapi_notify();
+        tlApiNotify();
     }
 }
