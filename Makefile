@@ -25,7 +25,7 @@ TA_CFLAGS  = -ffreestanding -nostdlib -fno-pic -fno-pie -fno-stack-protector \
              -march=armv8-a -Os -Wall -Wextra
 TA_SRC     = trustlet
 TOOLS      = tools
-TA_OBJ     = $(TA_SRC)/start.o $(TA_SRC)/main.o
+TA_OBJ     = $(TA_SRC)/start.o $(TA_SRC)/runtime.o $(TA_SRC)/main.o
 TLBIN      = ta.tlbin
 
 # ---- client toolchain (Android NDK) ----------------------------------------
@@ -56,6 +56,8 @@ $(TA_SRC)/%.o: $(TA_SRC)/%.S
 
 $(TA_SRC)/%.o: $(TA_SRC)/%.c
 	$(TA_CC) $(TA_CFLAGS) -c $< -o $@
+
+$(TA_SRC)/main.o $(TA_SRC)/runtime.o: $(TA_SRC)/tlapi.h
 
 $(TA_SRC)/ta.elf: $(TA_OBJ) $(TA_SRC)/ta.ld
 	$(TA_LD) -T $(TA_SRC)/ta.ld -static --no-dynamic-linker $(TA_OBJ) -o $@

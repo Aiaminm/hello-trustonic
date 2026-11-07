@@ -6,14 +6,9 @@
  *   tci[2..] = payload words
  */
 #include <stdint.h>
+#include "tlapi.h"
 
-extern uint32_t tlapi_wait(uint32_t timeout);
-extern void     tlapi_notify(void);
-extern int      tlapi_get_property_uuid(uint32_t propset, const char *name, void *out16);
-
-#define TLAPI_INFINITE  0xffffffffu
 #define RSP_FLAG        0x80000000u
-#define TEE_PROPSET_TEE_IMPLEMENTATION 0xfffffffdu
 
 enum {
     CMD_ECHO     = 1,   /* upper-case tci[1] bytes of payload at &tci[2]         */
