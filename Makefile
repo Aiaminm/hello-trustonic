@@ -58,6 +58,7 @@ $(TA_SRC)/%.o: $(TA_SRC)/%.c
 	$(TA_CC) $(TA_CFLAGS) -c $< -o $@
 
 $(TA_SRC)/main.o $(TA_SRC)/runtime.o: $(TA_SRC)/tlapi.h
+$(TA_SRC)/runtime.o: TA_CFLAGS += -I$(TEE_USERSPACE)/common/MobiCore/inc
 
 $(TA_SRC)/ta.elf: $(TA_OBJ) $(TA_SRC)/ta.ld
 	$(TA_LD) -T $(TA_SRC)/ta.ld -static --no-dynamic-linker $(TA_OBJ) -o $@

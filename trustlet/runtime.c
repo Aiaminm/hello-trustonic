@@ -1,14 +1,15 @@
 /* runtime.c — McLib runtime: tlApi gateway + stubs, C entry (ta_start). */
 #include <stdint.h>
+#include "mcLoadFormat.h"
 #include "tlapi.h"
 
-#define GW_ADDR 0x108cUL   /* mclfTextHeader.mcLibEntry: 32-bit gateway ptr, loader-filled */
+#define TEXT_HDR ((const volatile mclfTextHeader_t *)(0x1000UL + MCLF_HEADER_SIZE_V23))
 
 /* tlApi gateway: cmd in x0, args x1..x3 */
 static uint32_t gw(unsigned long cmd, unsigned long a1, unsigned long a2, unsigned long a3)
 {
     unsigned long (*g)(unsigned long, unsigned long, unsigned long, unsigned long)
-        = (void *)(unsigned long)(*(volatile uint32_t *)GW_ADDR);
+        = (void *)(unsigned long)TEXT_HDR->mcLibEntry;
     return (uint32_t)g(cmd, a1, a2, a3);
 }
 
