@@ -16,6 +16,10 @@ enum {
     CMD_ADD      = 2,   /* tci[2] = tci[2] + tci[3]                              */
     CMD_INFO     = 3,   /* tci[2] = magic, tci[3] = received tci_len             */
     CMD_DEVICEID = 4,   /* 16-byte gpd.tee.deviceID UUID into &tci[2]            */
+    CMD_RAND     = 5,   /* tci[1] bytes of secure-world random into &tci[2]      */
+    CMD_SHA256   = 6,   /* SHA-256 of tci[1] input bytes -> 32 bytes at &tci[2]  */
+    CMD_VERSION  = 7,   /* mcVersionInfo_t into &tci[2]                          */
+    CMD_TIME     = 8,   /* 64-bit secure timestamp into tci[2],tci[3]           */
 };
 
 #define TA_MAGIC   0x00007461u     /* "ta" */
@@ -64,6 +68,51 @@ void tlMain(const addr_t tciBuffer, const uint32_t tciBufferLen)
             volatile uint8_t *p = (volatile uint8_t *)&tci[2];
             for (uint32_t i = 0; i < 16; i++) p[i] = buf[i];
             status = (uint32_t)r;   /* GP result (0 = success) */
+            break;
+        }
+        case CMD_RAND: {
+            uint32_t n = tci[1];
+            uint32_t cap = (len > 8) ? (len - 8) : 0;
+            if (n > cap) n = cap;
+            size_t outlen = n;
+            tlApiResult_t r = tlApiRandomGenerateData(TLAPI_ALG_SECURE_RANDOM,
+                                                      (uint8_t *)&tci[2], &outlen);
+            status = (r == TLAPI_OK) ? (uint32_t)outlen : r;
+            break;
+        }
+        case CMD_SHA256: {
+            uint32_t n = tci[1];
+            uint32_t cap = (len > 8) ? (len - 8) : 0;
+            if (n > cap) n = cap;
+            uint8_t hash[32];
+            size_t hlen = sizeof(hash);
+            tlApiCrSession_t md;
+            tlApiResult_t r = tlApiMessageDigestInit(&md, TLAPI_ALG_SHA256);
+            if (r == TLAPI_OK)
+                r = tlApiMessageDigestDoFinal(md, (const uint8_t *)&tci[2], n, hash, &hlen);
+            if (r == TLAPI_OK) {
+                volatile uint8_t *p = (volatile uint8_t *)&tci[2];
+                for (uint32_t i = 0; i < hlen; i++) p[i] = hash[i];
+            }
+            status = (r == TLAPI_OK) ? (uint32_t)hlen : r;
+            break;
+        }
+        case CMD_VERSION: {
+            mcVersionInfo_t vi;
+            tlApiResult_t r = tlApiGetMobicoreVersion(&vi);
+            if (r == TLAPI_OK) {
+                volatile uint8_t *p = (volatile uint8_t *)&tci[2];
+                const uint8_t *s = (const uint8_t *)&vi;
+                for (uint32_t i = 0; i < sizeof(vi); i++) p[i] = s[i];
+            }
+            status = r;
+            break;
+        }
+        case CMD_TIME: {
+            timestamp_t ts = 0;
+            tlApiResult_t r = tlApiGetSecureTimestamp(&ts);
+            if (r == TLAPI_OK) { tci[2] = (uint32_t)ts; tci[3] = (uint32_t)(ts >> 32); }
+            status = r;
             break;
         }
         default:

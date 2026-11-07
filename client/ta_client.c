@@ -8,7 +8,16 @@
 
 #define TCI_LEN   0x1000u
 #define RSP_FLAG  0x80000000u
-enum { CMD_ECHO = 1, CMD_ADD = 2, CMD_INFO = 3, CMD_DEVICEID = 4 };
+enum {
+    CMD_ECHO     = 1,
+    CMD_ADD      = 2,
+    CMD_INFO     = 3,
+    CMD_DEVICEID = 4,
+    CMD_RAND     = 5,
+    CMD_SHA256   = 6,
+    CMD_VERSION  = 7,
+    CMD_TIME     = 8,
+};
 
 static const mcUuid_t TA_UUID = {
     { 0x0a,0x0a,0x0a,0x0a, 0,0,0,0, 0,0,0,0, 0,0,0,0x01 }
@@ -74,6 +83,31 @@ int main(void)
     printf("DEVID: status=0x%08x  gpd.tee.deviceID=", (unsigned)st);
     for (int i = 0; i < 16; i++) printf("%02x%s", id[i], (i==3||i==5||i==7||i==9)?"-":"");
     printf("\n");
+
+    /* CMD_RAND — secure-world random bytes */
+    t[1] = 16;
+    st = call(CMD_RAND);
+    printf("RAND:  status=%d  bytes=", st);
+    for (int i = 0; i < 16; i++) printf("%02x", ((uint8_t *)&t[2])[i]);
+    printf("\n");
+
+    /* CMD_SHA256 — hashed in the TEE; verify with: printf '%s' <msg> | sha256sum */
+    const char *hmsg = "hello";
+    strcpy((char *)&t[2], hmsg);
+    t[1] = (uint32_t)strlen(hmsg);
+    st = call(CMD_SHA256);
+    printf("SHA256(\"%s\"): status=%d  ", hmsg, st);
+    for (int i = 0; i < 32; i++) printf("%02x", ((uint8_t *)&t[2])[i]);
+    printf("\n");
+
+    /* CMD_VERSION — mcVersionInfo_t (productId is the first 64 bytes) */
+    st = call(CMD_VERSION);
+    printf("VERSION: status=%d  productId=\"%s\"\n", st, (const char *)&t[2]);
+
+    /* CMD_TIME — 64-bit secure timestamp */
+    st = call(CMD_TIME);
+    printf("TIME:  status=%d  ts=%llu\n", st,
+           (unsigned long long)((uint64_t)t[2] | ((uint64_t)t[3] << 32)));
 
     mcCloseSession(&sess);
     mcFreeWsm(MC_DEVICE_ID_DEFAULT, tci);
