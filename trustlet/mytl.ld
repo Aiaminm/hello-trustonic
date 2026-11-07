@@ -8,6 +8,12 @@
  */
 ENTRY(_start)
 
+PHDRS
+{
+    text PT_LOAD FLAGS(5);              /* R+X */
+    data PT_LOAD FLAGS(6);              /* R+W */
+}
+
 SECTIONS
 {
     . = 0x1000;
@@ -17,7 +23,7 @@ SECTIONS
         *(.text) *(.text.*)
         *(.rodata) *(.rodata.*)
         . = ALIGN(8);
-    }
+    } :text
     __text_end = .;
 
     . = ALIGN(0x1000);
@@ -25,7 +31,7 @@ SECTIONS
     .data : {
         *(.data) *(.data.*) *(.sdata) *(.sdata.*)
         . = ALIGN(8);
-    }
+    } :data
     __data_end = .;
 
     .bss (NOLOAD) : {
@@ -38,7 +44,7 @@ SECTIONS
         . = ALIGN(8);
         __tci_desc = .;                 /* kernel writes {u32 ptr, u32 len} here */
         . = . + 8;
-    }
+    } :data
     __bss_end = .;                      /* __tci_desc == __bss_end - 8 */
 
     /DISCARD/ : {
