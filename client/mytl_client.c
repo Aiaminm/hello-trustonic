@@ -1,14 +1,5 @@
 /* mytl_client.c — normal-world driver for the mytl echo trustlet.
- *
- * Opens a MobiCore session to UUID 0a0a0a0a…0001, then exercises the three
- * commands the TA implements over the shared TCI buffer:
- *   CMD_ECHO  - upper-cases a string
- *   CMD_ADD   - adds two u32s
- *   CMD_INFO  - returns the TA magic + the tci_len the TA was given
- *
- * Build with the Android NDK (Bionic), link libMcClient:
- *   $NDK/.../aarch64-linux-android<API>-clang mytl_client.c -lMcClient -o mytl_client
- * Run on device (needs mcDriverDaemon up and the .tlbin in /vendor/app/mcRegistry).
+ * Opens a MobiCore session to the TA and exercises its commands over the TCI buffer.
  */
 #include <stdio.h>
 #include <string.h>

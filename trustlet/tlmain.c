@@ -1,15 +1,9 @@
-/* mytl/tlmain.c — echo trustlet command loop.
+/* tlmain.c — echo trustlet command loop.
  *
- * tlMain(tci, len) is called once by the McLib startup (start.S) with the TCI
- * buffer the normal world passed to mcOpenSession(). We own both ends, so the
- * TCI protocol is whatever we define here:
- *
- *   tci[0] = command id         (NW writes; TA replies with RSP_FLAG OR'd in)
- *   tci[1] = status / length    (TA writes status; some cmds use it as a length)
+ * TCI protocol (TA-defined; the NW client matches it):
+ *   tci[0]   = command id      (TA replies with RSP_FLAG set)
+ *   tci[1]   = status / length
  *   tci[2..] = payload words
- *
- * The loop: wait for the NW notification, service the command in place, flip the
- * response flag, notify the NW back.
  */
 #include <stdint.h>
 
@@ -30,7 +24,7 @@ enum {
 
 #define MYTL_MAGIC 0x6d79746cu       /* "mytl" */
 
-/* an initialized global forces a non-empty .data segment (KeyMint has one too) */
+/* initialized global: forces a non-empty .data segment */
 uint32_t mytl_magic = MYTL_MAGIC;
 
 void tlMain(volatile uint32_t *tci, uint32_t len)
@@ -63,8 +57,7 @@ void tlMain(volatile uint32_t *tci, uint32_t len)
             tci[3] = len;
             break;
         case CMD_DEVICEID: {
-            /* gpd.tee.deviceID is a 16-byte TEE_UUID; read into a local buffer
-             * (the getter writes the property's natural size) then into the TCI. */
+            /* gpd.tee.deviceID: 16-byte TEE_UUID via a local buffer, then into the TCI */
             uint8_t buf[16];
             for (uint32_t i = 0; i < sizeof(buf); i++) buf[i] = 0;
             int r = tlapi_get_property_uuid(TEE_PROPSET_TEE_IMPLEMENTATION,

@@ -1,14 +1,10 @@
-/* mytl/start.S — minimal from-scratch Kinibi/MobiCore trustlet runtime.
+/* start.S — trustlet runtime: entry, stack, tlApi stubs.
  *
- * Contract (reverse-engineered — see notes/trustlet-abi.md):
- *   - MCLF header `entry` points here (_start); kernel enters at EL0.
- *   - tlApi gateway = *(uint32_t*)0x108c  (mclfTextHeader.mcLibEntry, loader-filled).
- *     Call as gw(cmd, arg1, arg2) with cmd in w0: 6=waitNotification(timeout),
- *     7=notify, 0x80000000=startup-ready.
- *   - The kernel writes a {uint32_t tci_ptr; uint32_t tci_len;} descriptor into the
- *     last 8 bytes of bss (__tci_desc == bss_end-8) before entering the TA.
- *
- * `hint #38/#34` are bti jc / bti c (NOPs where BTI is off) — defensive landing pads.
+ *   entry        = _start (MCLF header points here; kernel enters at EL0)
+ *   tlApi gw     = *(u32*)0x108c  (mclfTextHeader.mcLibEntry, loader-filled)
+ *                  gw(cmd,a1,a2), cmd in w0: 6=wait(timeout) 7=notify
+ *                  0x80000000=startup  0x2b=TEE_GetPropertyAsUUID
+ *   TCI desc     = {u32 ptr; u32 len}, kernel-written at bss_end-8 (__tci_desc)
  */
     .arch armv8-a
     .text
@@ -16,8 +12,8 @@
     .global _start
     .type   _start, %function
 _start:
-    hint    #38                     /* bti jc : entered by the kernel */
-    /* install our own stack (top of a bss array) before touching the stack */
+    hint    #38                     /* bti jc */
+    /* set up stack */
     adrp    x0, __stack_top
     add     x0, x0, :lo12:__stack_top
     mov     sp, x0
@@ -29,7 +25,7 @@ _start:
     movk    w0, #0x8000, lsl #16    /* w0 = 0x80000000 */
     bl      gw_enter
 
-    /* fetch kernel-filled TCI descriptor: w0 = tci_ptr, w1 = tci_len */
+    /* TCI descriptor -> w0 = ptr, w1 = len */
     adrp    x9, __tci_desc
     add     x9, x9, :lo12:__tci_desc
     ldp     w0, w1, [x9]
@@ -70,8 +66,7 @@ tlapi_get_property_uuid:
     b       gw_enter
     .size   tlapi_get_property_uuid, .-tlapi_get_property_uuid
 
-    /* tail-call the gateway at *(u32*)0x108c; lr is preserved so the gateway's
-     * ret returns to our caller (same shape as the real McLib stubs). */
+    /* tail-call gateway at *(u32*)0x108c; lr preserved -> its ret returns to our caller */
     .type   gw_enter, %function
 gw_enter:
     hint    #34                     /* bti c */

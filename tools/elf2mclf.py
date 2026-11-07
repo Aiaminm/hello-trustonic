@@ -1,19 +1,13 @@
 #!/usr/bin/env python3
-"""elf2mclf.py — convert a linked AArch64 ELF into a Kinibi/MobiCore MCLF (.tlbin).
+"""elf2mclf.py — link an AArch64 ELF into a MobiCore MCLF (.tlbin).
 
-Produces (see notes/trustlet-abi.md):
-  file = [ text ][ data ][ trailer ]
+file = [ text ][ data ][ trailer ]
   text[0x00:0x80]  mclfHeaderV2 + permittedSuid
-  text[0x80:0xa8]  mclfTextHeader (mcLibEntry@0x8c and mcLibBase@0x98 left 0 = loader fills)
-  text[0x100:..]   code+rodata (linked at VA 0x1100)
+  text[0x80:0xa8]  mclfTextHeader (mcLibEntry@0x8c, mcLibBase@0x98 left 0 -> loader fills)
+  text[0x100:]     code + rodata (linked at VA 0x1100)
   data             initialized data, mapped at a page-aligned dataVa
-  trailer          self-signed with a fresh throwaway RSA key (NO signer transplant):
-                   [u32 0x100][256-B our modulus N][u32 1][e=03][256-B RSA-PSS sig over
-                   text+data]. Nothing is copied from a real Trustonic TA. Both gates the
-                   trailer feeds are neutralised on-device by build_metapatch.py: G2
-                   (signer hash-pin) no longer needs our modulus to match a pinned one,
-                   and G3 (PSS verdict) is forced valid. The key is ephemeral -- generated
-                   per build and discarded -- since nothing on-device pins or verifies it.
+  trailer          [u32 0x100][256-B modulus][u32 1][e=03][256-B RSA-PSS sig over text+data],
+                   self-signed with a fresh per-build RSA-2048/e=3 key.
 """
 import argparse, struct, hashlib
 from elftools.elf.elffile import ELFFile
@@ -51,7 +45,7 @@ def main():
     ap.add_argument('-o', '--out', required=True)
     ap.add_argument('--uuid', default='0a0a0a0a000000000000000000000001')
     ap.add_argument('--service-type', type=lambda x: int(x, 0), default=3)
-    ap.add_argument('--flags',        type=lambda x: int(x, 0), default=0x28)  # bit3 EXTENDED_LAYOUT + bit5 (validator requires bit5 set, else a global check)
+    ap.add_argument('--flags',        type=lambda x: int(x, 0), default=0x28)  # EXTENDED_LAYOUT (bit3) | bit5, both required
     ap.add_argument('--num-instances',type=lambda x: int(x, 0), default=1)
     ap.add_argument('--num-threads',  type=lambda x: int(x, 0), default=1)
     ap.add_argument('--heap-init',    type=lambda x: int(x, 0), default=0x8000)
@@ -111,13 +105,7 @@ def main():
     struct.pack_into('<II',  text, 0x9c, 0x00010015, 0x00010005)   # tlApiVers, drApiVers
     struct.pack_into('<I',   text, 0xa4, 0)                        # ta_properties
 
-    # --- trailer: self-signed with a fresh throwaway key (no signer transplant) ---
-    # Layout matches a real Trustonic trailer byte-for-byte in shape, but every byte is
-    # ours: a per-build RSA-2048/e=3 key, our modulus, and a genuine RSA-PSS(SHA-256)
-    # signature over body = file[0 : textLen+dataLen]. G2 (signer hash-pin) and G3 (PSS
-    # verdict) are both neutralised by build_metapatch.py, so the modulus needs no pin and
-    # the signature is never checked on-device -- it is emitted only so the artifact is
-    # internally consistent (verifies against its own embedded modulus).
+    # --- trailer: self-signed, fresh per-build RSA-2048/e=3 key, PSS over text+data ---
     body = bytes(text) + bytes(data)
     key = rsa.generate_private_key(public_exponent=3, key_size=2048)
     pub = key.public_key().public_numbers()
